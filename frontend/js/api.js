@@ -1,19 +1,7 @@
 /* ============================================================
-   api.js
-   Stands in for real backend calls. Every function here mimics
-   what a fetch() to the backend will eventually do — same shapes,
-   same names minus the "api" prefix once wired to a real server.
-   Swap the bodies of these functions for fetch() calls when the
-   backend (see project Rmd) is ready; callers won't need to change.
-
-   NOTE ON PERSISTENCE: only session-created changes (new listings,
-   claim/collect status) are cached in sessionStorage — the seed
-   listings below always load fresh from this file. That means
-   editing anything here (like a photoUrl) shows up immediately on
-   reload instead of being masked by a stale cached copy. Remove
-   this whole persistence layer once the real backend + database
-   are wired up.
+   api.js — real backend integration (dumptrade.onrender.com/api)
 ============================================================ */
+const API_BASE = "/api";
 
 const CATEGORIES = [
   { key: "furniture", label: "Furniture", avgKg: 15, tag: "FN" },
@@ -25,118 +13,155 @@ const CATEGORIES = [
   { key: "industrial", label: "Industrial Byproduct", avgKg: 18, tag: "IN" },
   { key: "other", label: "Other", avgKg: 3, tag: "OT" },
 ];
-
 function catMeta(key) {
   return CATEGORIES.find(c => c.key === key) || CATEGORIES[CATEGORIES.length - 1];
 }
-function hoursAgo(h) { return new Date(Date.now() - h * 3600 * 1000).toISOString(); }
 function timeAgo(iso) {
   const hrs = Math.round((Date.now() - new Date(iso).getTime()) / 3600000);
   if (hrs < 1) return "just now";
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.round(hrs / 24)}d ago`;
 }
-// Locations are stored as "City, Area" — cityOf() pulls out the city
-// for the location filter (proximity by city, not real geolocation yet).
 function cityOf(location) { return location.split(",")[0].trim(); }
 
-// Edit photos, text, etc. here freely — this array always loads fresh,
-// it is never itself cached. Point photoUrl at a real hosted image or
-// a local file under assets/ (e.g. "assets/listings/chairs.jpg").
-const SEED_LISTINGS = [
-  { id: 1, title: "3 office chairs, minor wear", category: "furniture", qtyLabel: "3 units", qtyNum: 3, condition: "Used - good", location: "Kisumu, Milimani", status: "available", posterName: "Amina O.", accountType: "individual", postedAt: hoursAgo(2), description: "Swivel chairs from a closed workspace. Two need a screw tightened, otherwise solid.", photoUrl: "https://thumbs.dreamstime.com/b/lots-broken-office-chairs-going-repairs-landfill-269309706.jpg" },
-  { id: 2, title: "Offcut timber, mixed sizes", category: "construction", qtyLabel: "~40kg", qtyNum: 4, condition: "New offcuts", location: "Nairobi, Industrial Area", status: "available", posterName: "Zawadi Works Ltd.", accountType: "organization", postedAt: hoursAgo(5), description: "Leftover from cabinet production. Good for small joinery or a firewood alternative.", photoUrl: "https://www.lbmachinery.com/wp-content/uploads/2026/08/ScreenShot_2026-08-06_114610_954.png" },
-  { id: 3, title: "Broken laptops (for parts)", category: "ewaste", qtyLabel: "6 units", qtyNum: 6, condition: "Non-functional", location: "Kisumu, CBD", status: "claimed", posterName: "Brian K.", accountType: "individual", postedAt: hoursAgo(30), description: "Screens cracked, boards may still work. Good for a repair shop or e-waste recycler.", photoUrl: null },
-  { id: 4, title: "Fabric offcuts, assorted colors", category: "textiles", qtyLabel: "5 bags", qtyNum: 5, condition: "New offcuts", location: "Nairobi, Gikomba", status: "available", posterName: "Cheza Tailors", accountType: "organization", postedAt: hoursAgo(8), description: "Cotton and ankara offcuts from tailoring. Great for patchwork or stuffing.", photoUrl: "https://www.intellecap.com/wp-content/uploads/2024/05/new_case_study02.jpg" },
-  { id: 5, title: "Spent coffee grounds, daily", category: "organic", qtyLabel: "10kg / day", qtyNum: 5, condition: "Fresh daily", location: "Kisumu, Milimani", status: "available", posterName: "Java Corner Cafe", accountType: "organization", postedAt: hoursAgo(1), description: "Recurring listing — great for composting or mushroom substrate. Collect daily after 6pm.", photoUrl: null },
-  { id: 6, title: "Dining table, one leg wobbly", category: "furniture", qtyLabel: "1 unit", qtyNum: 1, condition: "Used - fair", location: "Kisumu, Nyalenda", status: "collected", posterName: "Grace W.", accountType: "individual", postedAt: hoursAgo(60), description: "Solid wood, just needs a leg brace.", photoUrl: null },
-  { id: 7, title: "PET bottle bales", category: "plastic", qtyLabel: "200kg", qtyNum: 20, condition: "Sorted, clean", location: "Nairobi, Industrial Area", status: "available", posterName: "Pack Right Ltd.", accountType: "organization", postedAt: hoursAgo(12), description: "Baled PET from packaging line. Ready for a recycler with pickup capacity.", photoUrl: null },
-  { id: 8, title: "Metal shavings from lathe work", category: "industrial", qtyLabel: "80kg", qtyNum: 5, condition: "Mixed alloy", location: "Kisumu, Kibos Road", status: "available", posterName: "Otieno Metal Works", accountType: "organization", postedAt: hoursAgo(20), description: "Steel and aluminum shavings, unsorted. Good for scrap buyers.", photoUrl: null },
-  { id: 9, title: "Kids clothes, outgrown", category: "textiles", qtyLabel: "2 bags", qtyNum: 2, condition: "Used - good", location: "Nairobi, Kasarani", status: "collected", posterName: "Faith M.", accountType: "individual", postedAt: hoursAgo(90), description: "Ages 2-6, mixed. Clean and folded.", photoUrl: null },
-  { id: 10, title: "Old car batteries", category: "ewaste", qtyLabel: "4 units", qtyNum: 4, condition: "Dead", location: "Kisumu, Mamboleo", status: "available", posterName: "Peter N.", accountType: "individual", postedAt: hoursAgo(3), description: "For a licensed e-waste or battery recycler only, please.", photoUrl: null },
-];
-
-// --- Session-only persistence for CHANGES only, not the seed data ---
-function loadJSON(key, fallback) {
-  try { const raw = sessionStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
-  catch (e) { return fallback; }
+/* ---------- session ---------- */
+function getToken() { return localStorage.getItem("dumptrade_token"); }
+function getCurrentUser() {
+  const raw = localStorage.getItem("dumptrade_user");
+  return raw ? JSON.parse(raw) : null;
 }
-function saveJSON(key, value) {
-  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
+function setSession(token, user) {
+  localStorage.setItem("dumptrade_token", token);
+  localStorage.setItem("dumptrade_user", JSON.stringify(user));
 }
+function clearSession() {
+  localStorage.removeItem("dumptrade_token");
+  localStorage.removeItem("dumptrade_user");
+}
+function isLoggedIn() { return !!getToken(); }
 
-let _statusOverrides = loadJSON("dumptrade_status_overrides", {}); // { [seedId]: newStatus }
-let _addedListings = loadJSON("dumptrade_added_listings", []);     // listings created via Post
+/* ---------- low-level fetch wrapper ---------- */
+async function apiFetch(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
-function buildListings() {
-  const seeded = SEED_LISTINGS.map(l =>
-    _statusOverrides[l.id] ? { ...l, status: _statusOverrides[l.id] } : l
-  );
-  return [..._addedListings, ...seeded];
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* empty body is fine */ }
+
+  if (!res.ok) {
+    const message = (data && data.error) || `Request failed (${res.status})`;
+    throw new Error(message);
+  }
+  return data;
 }
 
-let _listings = buildListings();
-let _nextId = Math.max(0, ...SEED_LISTINGS.map(l => l.id), ..._addedListings.map(l => l.id)) + 1;
+/* ---------- normalize backend (snake_case) -> frontend (camelCase) ---------- */
+function normalizeListing(raw) {
+  if (!raw) return raw;
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    title: raw.title,
+    category: raw.category,
+    description: raw.description,
+    photoUrl: raw.photo_url || null,
+    qtyLabel: raw.qty_label,
+    qtyNum: raw.qty_num,
+    condition: raw.condition,
+    location: raw.location,
+    status: raw.status,
+    postedAt: raw.created_at,
+    posterName: raw.poster_name,
+    accountType: raw.account_type,
+    posterEmail: raw.poster_email || null, // only populated on the claim response
+  };
+}
 
-function persistChange(listing) {
-  const isSeed = SEED_LISTINGS.some(s => s.id === listing.id);
-  if (isSeed) {
-    _statusOverrides[listing.id] = listing.status;
-    saveJSON("dumptrade_status_overrides", _statusOverrides);
-  } else {
-    const idx = _addedListings.findIndex(a => a.id === listing.id);
-    if (idx !== -1) { _addedListings[idx] = listing; saveJSON("dumptrade_added_listings", _addedListings); }
+/* ---------- auth ---------- */
+async function apiRegister({ name, email, password, accountType, location }) {
+  const data = await apiFetch("/register", {
+    method: "POST",
+    body: JSON.stringify({ name, email, password, account_type: accountType, location }),
+  });
+  setSession(data.token, data.user);
+  return data.user;
+}
+
+async function apiLogin({ email, password }) {
+  const data = await apiFetch("/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  setSession(data.token, data.user);
+  return data.user;
+}
+
+function apiLogout() { clearSession(); }
+
+/* ---------- listings ---------- */
+async function apiGetListings(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.category) params.set("category", filters.category);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.search) params.set("search", filters.search);
+  const qs = params.toString();
+
+  const raw = await apiFetch(`/listings${qs ? `?${qs}` : ""}`);
+  return (raw || []).map(normalizeListing);
+}
+
+async function apiGetListingById(id) {
+  const raw = await apiFetch(`/listings/${id}`);
+  return normalizeListing(raw);
+}
+
+async function apiAddListing(fields) {
+  // requires login — throws if not authenticated (caller should check first)
+  const raw = await apiFetch("/listings", {
+    method: "POST",
+    body: JSON.stringify({
+      title: fields.title,
+      category: fields.category,
+      description: fields.description,
+      photo_url: fields.photoUrl || "",
+      qty_label: fields.qtyLabel,
+      qty_num: fields.qtyNum,
+      condition: fields.condition,
+      location: fields.location,
+    }),
+  });
+  return normalizeListing(raw);
+}
+
+async function apiClaimListing(id) {
+  try {
+    const raw = await apiFetch(`/listings/${id}/claim`, { method: "POST" });
+    const listing = normalizeListing(raw);
+    const contact = listing.posterEmail
+      ? `Contact ${listing.posterName || "the poster"} at ${listing.posterEmail}.`
+      : "Claimed — no contact email on file for the poster.";
+    return { ok: true, message: `Claimed! ${contact}`, listing };
+  } catch (err) {
+    return { ok: false, message: err.message };
   }
 }
 
-function apiGetCities() {
-  return Array.from(new Set(_listings.map(l => cityOf(l.location)))).sort();
-}
+async function apiCollectListing(id) {
+  try {
+    await apiFetch(`/listings/${id}/collect`, { method: "POST" });
+    const listing = await apiGetListingById(id);
+    const m = catMeta(listing.category);
+    return { ok: true, message: `Marked collected — ~${m.avgKg * listing.qtyNum}kg diverted.`, listing };
+  } catch (err) {
+    return { ok: false, message: err.message };
+  }
 
-function apiGetListings(filters = {}) {
-  return _listings.filter(l => {
-    if (filters.category && l.category !== filters.category) return false;
-    if (filters.status && filters.status !== "all" && l.status !== filters.status) return false;
-    if (filters.city && cityOf(l.location) !== filters.city) return false;
-    if (filters.search && !l.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
-    return true;
-  });
-}
-
-function apiGetListingById(id) {
-  return _listings.find(l => l.id === Number(id)) || null;
-}
-
-function apiAddListing(fields) {
-  const listing = {
-    id: _nextId++,
-    status: "available",
-    posterName: "You",
-    accountType: "individual",
-    postedAt: new Date().toISOString(),
-    photoUrl: null,
-    ...fields,
-  };
-  _addedListings.unshift(listing);
-  saveJSON("dumptrade_added_listings", _addedListings);
-  _listings = buildListings();
-  return listing;
-}
-
-function apiClaimListing(id) {
-  const l = apiGetListingById(id);
-  if (!l) return { ok: false, message: "Listing not found." };
-  if (l.status !== "available") return { ok: false, message: "Sorry — this was just claimed by someone else." };
-  l.status = "claimed";
-  persistChange(l);
-  return { ok: true, message: "Claimed! Contact details would be shared here.", listing: l };
-}
-
-function apiCollectListing(id) {
-  const l = apiGetListingById(id);
-  if (!l || l.status !== "claimed") return { ok: false, message: "This item isn't awaiting collection." };
-  l.status = "collected";
-  persistChange(l);
-  const m = catMeta(l.category);
-  return { ok: true, message: `Marked collected — ~${m.avgKg * l.qtyNum}kg diverted.`, listing: l };
+ // Derives the city dropdown from whatever listings currently exist,
+// since the backend has no dedicated /cities endpoint.
+async function apiGetCities() {
+  const all = await apiGetListings({ status: "all" });
+  return Array.from(new Set(all.map(l => cityOf(l.location)))).sort();
+} 
 }

@@ -76,6 +76,14 @@ function detailHtml(l) {
   else if (l.status === "claimed") actions = `<button class="btn btn-outline-dark" onclick="handleCollect(${l.id})">Mark as collected</button>`;
   else actions = `<div class="collected-note">${ICON.check} This item was collected &mdash; est. ${estKg}kg diverted.</div>`;
 
+   // NEW: show poster contact once claimed (populated by the claim response)
+  let contactBlock = "";
+  if (l.status === "claimed" && l.posterEmail) {
+    contactBlock = `<div class="collected-note" style="margin-top:12px;">
+      ${ICON.check} Contact ${l.posterName || "the poster"} at <strong>${l.posterEmail}</strong> to arrange pickup.
+    </div>`;
+  }
+
   return `
     <div class="detail-card">
       <div class="detail-photo" ${bg}>${l.photoUrl ? "" : `<span>${m.tag}</span>`}${stampBadge(l.status)}</div>

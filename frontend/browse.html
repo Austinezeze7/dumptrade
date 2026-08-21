@@ -52,7 +52,6 @@
     <div id="results"></div>
   </div>
 </main>
-
 <script src="js/api.js"></script>
 <script src="js/listings.js"></script>
 <script>
@@ -64,14 +63,21 @@
     search: "",
   };
 
-  // Populate location dropdown from listings actually on the platform.
-  const locationSelect = document.getElementById("location-select");
-  apiGetCities().forEach(city => {
-    const opt = document.createElement("option");
-    opt.value = city;
-    opt.textContent = city;
-    locationSelect.appendChild(opt);
-  });
+  async function loadCities() {
+    const locationSelect = document.getElementById("location-select");
+    try {
+      const cities = await apiGetCities();
+      cities.forEach(city => {
+        const opt = document.createElement("option");
+        opt.value = city;
+        opt.textContent = city;
+        locationSelect.appendChild(opt);
+      });
+    } catch (err) {
+      // non-fatal — dropdown just stays at "All locations"
+      console.error("Could not load cities:", err);
+    }
+  }
 
   function renderChips() {
     const row = document.getElementById("category-chip-row");
@@ -87,8 +93,23 @@
     });
   }
 
-  function renderResults() {
-    document.getElementById("results").innerHTML = ticketGridHtml(apiGetListings(filters));
+  async function renderResults() {
+    const results = document.getElementById("results");
+    results.innerHTML = `<div class="empty-state">Loading...</div>`;
+    try {
+      let listings = await apiGetListings({
+        category: filters.category,
+        status: filters.status,
+        search: filters.search,
+      });
+      // location isn't a backend filter — apply it client-side
+      if (filters.city) {
+        listings = listings.filter(l => cityOf(l.location) === filters.city);
+      }
+      results.innerHTML = ticketGridHtml(listings);
+    } catch (err) {
+      results.innerHTML = `<div class="empty-state">Couldn't load listings (${err.message}).</div>`;
+    }
   }
 
   document.getElementById("search-input").addEventListener("input", e => {
@@ -105,7 +126,9 @@
   });
 
   renderChips();
+  loadCities();
   renderResults();
 </script>
+
 </body>
 </html>

@@ -1,8 +1,8 @@
 /* ============================================================
    post.js
    Handles the post-an-item form: photo dropzone/preview via
-   FileReader, category dropdown population, and submission
-   into the mock api.js listings array.
+   FileReader, category dropdown population, and submission to
+   the real backend via apiAddListing() in api.js.
 ============================================================ */
 
 let postPhotoDataUrl = null;
@@ -50,7 +50,13 @@ function removePhoto() {
   initDropzone();
 }
 
-function submitPost() {
+async function submitPost() {
+  if (!isLoggedIn()) {
+    showToast("Please log in before posting an item.");
+    window.location.href = "login.html";
+    return;
+  }
+
   const title = document.getElementById("f-title").value.trim();
   const location = document.getElementById("f-location").value.trim();
   const qtyLabel = document.getElementById("f-qtylabel").value.trim();
@@ -58,17 +64,22 @@ function submitPost() {
     showToast("Please fill in title, quantity label, and location.");
     return;
   }
-  const listing = apiAddListing({
-    title,
-    category: document.getElementById("f-category").value,
-    qtyLabel,
-    qtyNum: Number(document.getElementById("f-qtynum").value) || 1,
-    condition: document.getElementById("f-condition").value.trim() || "Not specified",
-    location,
-    description: document.getElementById("f-description").value.trim() || "No extra details given.",
-    photoUrl: postPhotoDataUrl,
-  });
-  window.location.href = `listing.html?id=${listing.id}`;
+
+  try {
+    const listing = await apiAddListing({
+      title,
+      category: document.getElementById("f-category").value,
+      qtyLabel,
+      qtyNum: Number(document.getElementById("f-qtynum").value) || 1,
+      condition: document.getElementById("f-condition").value.trim() || "Not specified",
+      location,
+      description: document.getElementById("f-description").value.trim() || "No extra details given.",
+      photoUrl: postPhotoDataUrl,
+    });
+    window.location.href = `listing.html?id=${listing.id}`;
+  } catch (err) {
+    showToast(err.message || "Could not post listing. Please try again.");
+  }
 }
 
 initDropzone();

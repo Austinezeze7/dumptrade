@@ -73,6 +73,9 @@ func Connect() error {
 
 	// Keep the pool small -- Neon's pooled endpoint already multiplexes
 	cfg.MaxConns = 5
+	cfg.MaxConnLifetime = 5 * time.Minute   // force periodic reconnect before Neon can go stale on us 
+  cfg.MaxConnIdleTime = 1 * time.Minute   // don't hold idle connections that might die silently
+  cfg.HealthCheckPeriod = 30 * time.Second
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

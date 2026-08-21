@@ -155,7 +155,13 @@ func (h *ListingHandler) ClaimListing(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Listing claimed successfully"})
+	// Re-fetch so the response carries poster_name / poster_email for the UI.
+	listing, err := h.Store.GetByID(id)
+	if err != nil || listing == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "Listing claimed successfully"})
+		return
+	}
+	c.JSON(http.StatusOK, listing)
 }
 
 func (h *ListingHandler) MarkCollected(c *gin.Context) {

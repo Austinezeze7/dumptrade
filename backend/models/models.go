@@ -29,6 +29,7 @@ type Listing struct {
 	// Joined poster details for frontend convenience
 	PosterName  string `json:"poster_name,omitempty" db:"poster_name"`
 	AccountType string `json:"account_type,omitempty" db:"account_type"`
+	PosterEmail string `json:"poster_email,omitempty" db:"poster_email"`
 }
 
 type Claim struct {

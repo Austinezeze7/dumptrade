@@ -18,11 +18,21 @@ func NewPostgresListingStore() *PostgresListingStore {
 	return &PostgresListingStore{}
 }
 
+// queryCtx bounds every DB call to 8s so a stale/dead pooled connection
+// fails fast and gets recycled, instead of hanging and starving the pool
+// for every request queued behind it.
+func queryCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 20*time.Second)
+}
+
 func (s *PostgresListingStore) GetAll(category, status, search string) ([]models.Listing, error) {
+	ctx, cancel := queryCtx()
+	defer cancel()
+
 	query := `
 		SELECT l.id, l.user_id, l.title, l.category, COALESCE(l.description, ''), COALESCE(l.photo_url, ''),
 		       l.qty_label, l.qty_num, COALESCE(l.condition, ''), l.location, l.status, l.created_at,
-		       COALESCE(u.name, ''), COALESCE(u.account_type::text, '')
+		       COALESCE(u.name, ''), COALESCE(u.account_type::text, ''), COALESCE(u.email, '')
 		FROM listings l
 		LEFT JOIN users u ON l.user_id = u.id
 		WHERE ($1 = '' OR l.category::text = $1)
@@ -31,7 +41,7 @@ func (s *PostgresListingStore) GetAll(category, status, search string) ([]models
 		ORDER BY l.created_at DESC
 	`
 
-	rows, err := db.Pool.Query(context.Background(), query, category, status, search)
+	rows, err := db.Pool.Query(ctx, query, category, status, search)
 	if err != nil {
 		return nil, fmt.Errorf("querying listings: %w", err)
 	}
@@ -43,7 +53,7 @@ func (s *PostgresListingStore) GetAll(category, status, search string) ([]models
 		err := rows.Scan(
 			&l.ID, &l.UserID, &l.Title, &l.Category, &l.Description, &l.PhotoUrl,
 			&l.QtyLabel, &l.QtyNum, &l.Condition, &l.Location, &l.Status, &l.CreatedAt,
-			&l.PosterName, &l.AccountType,
+			&l.PosterName, &l.AccountType, &l.PosterEmail,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scanning listing row: %w", err)
@@ -59,20 +69,23 @@ func (s *PostgresListingStore) GetAll(category, status, search string) ([]models
 }
 
 func (s *PostgresListingStore) GetByID(id int) (*models.Listing, error) {
+	ctx, cancel := queryCtx()
+	defer cancel()
+
 	query := `
 		SELECT l.id, l.user_id, l.title, l.category, COALESCE(l.description, ''), COALESCE(l.photo_url, ''),
 		       l.qty_label, l.qty_num, COALESCE(l.condition, ''), l.location, l.status, l.created_at,
-		       COALESCE(u.name, ''), COALESCE(u.account_type::text, '')
+		       COALESCE(u.name, ''), COALESCE(u.account_type::text, ''), COALESCE(u.email, '')
 		FROM listings l
 		LEFT JOIN users u ON l.user_id = u.id
 		WHERE l.id = $1
 	`
 
 	var l models.Listing
-	err := db.Pool.QueryRow(context.Background(), query, id).Scan(
+	err := db.Pool.QueryRow(ctx, query, id).Scan(
 		&l.ID, &l.UserID, &l.Title, &l.Category, &l.Description, &l.PhotoUrl,
 		&l.QtyLabel, &l.QtyNum, &l.Condition, &l.Location, &l.Status, &l.CreatedAt,
-		&l.PosterName, &l.AccountType,
+		&l.PosterName, &l.AccountType, &l.PosterEmail,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -84,6 +97,9 @@ func (s *PostgresListingStore) GetByID(id int) (*models.Listing, error) {
 }
 
 func (s *PostgresListingStore) Create(l *models.Listing) error {
+	ctx, cancel := queryCtx()
+	defer cancel()
+
 	if l.QtyNum <= 0 {
 		l.QtyNum = 1
 	}
@@ -100,15 +116,18 @@ func (s *PostgresListingStore) Create(l *models.Listing) error {
 		RETURNING id, created_at
 	`
 	return db.Pool.QueryRow(
-		context.Background(),
+		ctx,
 		query,
 		l.UserID, l.Title, l.Category, l.Description, l.PhotoUrl, l.QtyLabel, l.QtyNum, l.Condition, l.Location, l.Status, l.CreatedAt,
 	).Scan(&l.ID, &l.CreatedAt)
 }
 
 func (s *PostgresListingStore) UpdateStatus(id int, status string) error {
+	ctx, cancel := queryCtx()
+	defer cancel()
+
 	query := `UPDATE listings SET status = $1 WHERE id = $2`
-	tag, err := db.Pool.Exec(context.Background(), query, status, id)
+	tag, err := db.Pool.Exec(ctx, query, status, id)
 	if err != nil {
 		return fmt.Errorf("updating listing status: %w", err)
 	}
@@ -119,7 +138,9 @@ func (s *PostgresListingStore) UpdateStatus(id int, status string) error {
 }
 
 func (s *PostgresListingStore) Claim(listingID int, claimantID int) error {
-	ctx := context.Background()
+	ctx, cancel := queryCtx()
+	defer cancel()
+
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("starting transaction: %w", err)
@@ -153,7 +174,9 @@ func (s *PostgresListingStore) Claim(listingID int, claimantID int) error {
 }
 
 func (s *PostgresListingStore) MarkCollected(listingID int) error {
-	ctx := context.Background()
+	ctx, cancel := queryCtx()
+	defer cancel()
+
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("starting transaction: %w", err)

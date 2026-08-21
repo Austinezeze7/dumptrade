@@ -37,14 +37,23 @@
 <script>
   const params = new URLSearchParams(window.location.search);
   const id = Number(params.get("id"));
-  const listing = apiGetListingById(id);
   const container = document.getElementById("detail-container");
 
-  if (listing) {
-    container.innerHTML = detailHtml(listing);
-  } else {
-    container.innerHTML = `<div class="empty-state">Listing not found. It may have been removed. <br><a class="btn btn-primary" style="margin-top:16px;" href="browse.html">Back to Browse</a></div>`;
+  async function loadListing() {
+    if (!id) {
+      container.innerHTML = `<div class="empty-state">No listing specified.<br><a class="btn btn-primary" style="margin-top:16px;" href="browse.html">Back to Browse</a></div>`;
+      return;
+    }
+    try {
+      const listing = await apiGetListingById(id);
+      container.innerHTML = detailHtml(listing);
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state">Couldn't load this listing (${err.message}).<br><a class="btn btn-primary" style="margin-top:16px;" href="browse.html">Back to Browse</a></div>`;
+    }
   }
+
+  loadListing();
 </script>
+
 </body>
 </html>
