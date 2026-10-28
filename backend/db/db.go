@@ -63,7 +63,9 @@ func Connect() error {
 		return fmt.Errorf("DATABASE_URL is not set (check your .env file)")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Neon suspends an idle project and resumes it on the next connection; the
+	// cold start can take longer than 10s, so allow room for it before failing.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	cfg, err := pgxpool.ParseConfig(connString)
