@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Log in &mdash; DumpTrade</title>
-<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/styles.css?v=3">
 </head>
 <body>
 
@@ -28,8 +28,10 @@
   <div class="section">
     <div class="section-head"><span class="section-eyebrow">LOG IN</span><h2>Welcome back</h2></div>
     <form class="form-card auth-card" onsubmit="handleAuthSubmit(event)">
-      <label class="field"><span>Email</span><input id="login-email" type="email" required placeholder="you@example.com"></label>
-      <label class="field"><span>Password</span><input id="login-password" type="password" required placeholder="********"></label>
+      <div class="field-row">
+        <label class="field"><span>Email</span><input id="login-email" type="email" required placeholder="you@example.com"></label>
+        <label class="field"><span>Password</span><input id="login-password" type="password" required placeholder="********"></label>
+      </div>
       <div class="detail-actions">
         <button class="btn btn-primary" type="submit">Log in</button>
       </div>

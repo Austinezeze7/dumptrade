@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Post an item &mdash; DumpTrade</title>
-<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/styles.css?v=3">
 </head>
 <body>
 
@@ -36,16 +36,20 @@
         </div>
         <input type="file" id="photo-input" accept="image/*" style="display:none">
       </label>
-      <label class="field"><span>Title</span><input id="f-title" placeholder="e.g. 3 office chairs, minor wear"></label>
-      <label class="field"><span>Category</span>
-        <select id="f-category"></select>
-      </label>
+      <div class="field-row">
+        <label class="field"><span>Title</span><input id="f-title" placeholder="e.g. 3 office chairs, minor wear"></label>
+        <label class="field"><span>Category</span>
+          <select id="f-category"></select>
+        </label>
+      </div>
       <div class="field-row">
         <label class="field"><span>Quantity label</span><input id="f-qtylabel" placeholder="e.g. 3 units, 40kg"></label>
         <label class="field"><span>Quantity (numeric)</span><input id="f-qtynum" type="number" min="1" value="1"></label>
       </div>
-      <label class="field"><span>Condition</span><input id="f-condition" placeholder="e.g. Used - good"></label>
-      <label class="field"><span>Location</span><input id="f-location" placeholder="e.g. Kisumu, Milimani"></label>
+      <div class="field-row">
+        <label class="field"><span>Condition</span><input id="f-condition" placeholder="e.g. Used - good"></label>
+        <label class="field"><span>Location</span><input id="f-location" placeholder="e.g. Kisumu, Milimani"></label>
+      </div>
       <label class="field"><span>Description</span><textarea id="f-description" rows="3" placeholder="Anything a claimant should know"></textarea></label>
       <div class="detail-actions">
         <button class="btn btn-primary" onclick="submitPost()">Post listing</button>
